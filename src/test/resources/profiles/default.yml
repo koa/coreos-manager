@@ -1,0 +1,11 @@
+spec:
+  channel: stable
+parentProfile: base
+rules:
+- match:
+  - key: mac
+    value: 00-0d-b9
+    type: PREFIX
+  properties:
+    console:
+    - ttyS0

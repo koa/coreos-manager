@@ -1,0 +1,19 @@
+#set( $D = '$' )
+spec:
+  channel: stable
+  kernelParameters:
+    coreos.first_boot:
+#if($console)
+    coreos.autologin:
+#foreach($c in $console)
+    - $c
+#end
+#end
+    coreos.config.url:
+    - $baseUrl[0]/ignition?uuid=${D}{uuid}&mac=${D}{net0/mac:hexhyp}
+#if($console)
+    console:
+#foreach($c in $console)
+    - $c,115200n8
+#end
+#end
