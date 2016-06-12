@@ -1,9 +1,9 @@
 package ch.bergturbenthal.coreos.manager.controller;
 
 import java.io.IOException;
-import java.net.URI;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ch.bergturbenthal.coreos.manager.service.AssetService;
 import ch.bergturbenthal.coreos.manager.service.ConfigurationService;
+import ch.bergturbenthal.coreos.manager.util.Utils;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -33,15 +34,22 @@ public class PxeController {
 
 	@RequestMapping(path = "ipxe", produces = "text/plain")
 	public String bootWithParams(final HttpServletRequest request) {
-		final String requestURL = URI.create(request.getRequestURL().toString()).resolve(".").toString();
-		final Map<String, String[]> parameterMap = new HashMap<String, String[]>(request.getParameterMap());
-		parameterMap.put("baseUrl", new String[] { requestURL });
+		log.info("Parameters: "
+							+ request.getParameterMap().entrySet().stream().map(entry -> entry.getKey() + ":" + Arrays.toString(entry.getValue())).collect(Collectors.joining(",")));
+		final Map<String, String[]> parameterMap = Utils.extractParams(request);
 		try {
 			return configurationService.generatePXE(parameterMap);
 		} catch (final Exception ex) {
 			log.error("Cannot process data for " + parameterMap, ex);
 			return "Error";
 		}
+	}
+
+	@RequestMapping("proxy/{channel}/{version}/{filename:.+}")
+	public FileSystemResource loadFile(	@PathVariable("channel") final String channel,
+																			@PathVariable("version") final String version,
+																			@PathVariable("filename") final String filename) throws IOException {
+		return assetService.getFile(channel, version, filename);
 	}
 
 	@RequestMapping("initrd/{channel}")

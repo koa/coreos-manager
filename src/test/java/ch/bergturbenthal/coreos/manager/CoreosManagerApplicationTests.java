@@ -39,6 +39,13 @@ public class CoreosManagerApplicationTests {
 	}
 
 	@Test
+	public void testIgnition() throws IOException {
+		final String ignition = configurationService.generateIgnition(defaultParameterMap());
+		log.info("------ Ignition ------\n" + ignition);
+
+	}
+
+	@Test
 	public void testPxe() throws IOException {
 		final String pxe = configurationService.generatePXE(defaultParameterMap());
 		log.info("------ PXE ------\n" + pxe);

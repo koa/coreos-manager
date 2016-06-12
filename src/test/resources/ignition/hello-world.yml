@@ -1,0 +1,22 @@
+ignition:
+  version: 2.0.0
+systemd:
+  units:
+  - name: example.service
+    enable: true
+    contents: |
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/echo Hello World
+      
+      [Install]
+      WantedBy=multi-user.target
+#if($ssh_authorized_keys)
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+#foreach($key in $ssh_authorized_keys)
+        - $key
+#end
+#end

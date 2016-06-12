@@ -1,6 +1,7 @@
 package ch.bergturbenthal.coreos.manager;
 
 import java.io.IOException;
+import java.net.URI;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
@@ -11,7 +12,9 @@ public class TestConfiguration {
 	@Bean
 	public Configuration configuration() throws IOException {
 		final Configuration config = new Configuration();
-		config.setProfileBase(new ClassPathResource("profiles/default.yml").getURI().resolve("."));
+		final URI profilesBase = new ClassPathResource("profiles/default.yml").getURI().resolve(".");
+		config.setProfileBase(profilesBase);
+		config.setIgnitionBase(profilesBase.resolve("../ignition/"));
 		config.setMacPropertiesConfiguration(new ClassPathResource("csv/test.csv").getURI());
 		return config;
 	}

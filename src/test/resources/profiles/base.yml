@@ -1,12 +1,23 @@
 #set( $D = '$' )
 spec:
-  channel: stable
+  channel: alpha
+#if($installedProfile && !$installedProfile[0].isEmpty())
+#if($installedProfile && $os[0]=="installed")
+  ignitionTemplate: $installedProfile[0]
+#else
+  ignitionTemplate: install-reboot
+#end
+#else
+  ignitionTemplate: hello-world
+#end
   kernelParameters:
     coreos.first_boot:
 #if($console)
     coreos.autologin:
 #foreach($c in $console)
+#if(!$c.isEmpty())
     - $c
+#end
 #end
 #end
     coreos.config.url:
@@ -14,6 +25,12 @@ spec:
 #if($console)
     console:
 #foreach($c in $console)
+#if(!$c.isEmpty())
+#if($c.startsWith("ttyS"))
     - $c,115200n8
+#else
+    - $c
+#end
+#end
 #end
 #end

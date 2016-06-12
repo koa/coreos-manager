@@ -50,6 +50,7 @@ public class DefaultAssetService implements AssetService {
 	private File downloadUrl(final String targetFilename, final URL url) throws IOException {
 		final File cachedFile = new File(cacheDir, targetFilename);
 		if (!cachedFile.exists()) {
+			cachedFile.getParentFile().mkdirs();
 			log.info("Download " + url + " -> " + targetFilename);
 			final File tempFile = File.createTempFile("download", "", cacheDir);
 			{
@@ -65,11 +66,17 @@ public class DefaultAssetService implements AssetService {
 	}
 
 	@Override
-	public FileSystemResource getInitRd(final String channel) throws IOException {
-		final File downloadedFile = downloadUrl("initrd-"+ channel,
-																						new URL("http://" + channel + ".release.core-os.net/amd64-usr/current/coreos_production_pxe_image.cpio.gz"));
+	public FileSystemResource getFile(final String channel, final String version, final String filename) throws IOException {
+		final String targetFilename = channel + "/" + version + "/" + filename;
+		final URL url = new URL("http://" + channel + ".release.core-os.net/amd64-usr/" + version + "/" + filename);
+		return new FileSystemResource(downloadUrl(targetFilename, url));
 
-		return new FileSystemResource(downloadedFile);
+	}
+
+	@Override
+	public FileSystemResource getInitRd(final String channel) throws IOException {
+		return new FileSystemResource(downloadUrl("initrd-"+ channel,
+																							new URL("http://" + channel + ".release.core-os.net/amd64-usr/current/coreos_production_pxe_image.cpio.gz")));
 	}
 
 	@Override

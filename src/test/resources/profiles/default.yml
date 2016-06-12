@@ -1,5 +1,4 @@
 spec:
-  channel: stable
 parentProfile: base
 rules:
 - match:
