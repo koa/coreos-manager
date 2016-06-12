@@ -14,7 +14,7 @@ systemd:
         ExecStart=/usr/bin/curl $baseUrl[0]/ignition?uuid=$uuid[0]&mac=$mac[0]&os=installed -o ignition.json
         ExecStart=/usr/bin/coreos-install -d $discs[0] -i ignition.json -b $baseUrl[0]proxy/alpha
         ExecStart=/usr/bin/udevadm settle
-        ExecStart=/usr/bin/mount /dev/vda6 /boot/
+        ExecStart=/usr/bin/mount $discs[0]6 /boot/
 #foreach($c in $console)
 #if(!$c.isEmpty())
 #if($c.startsWith("ttyS"))

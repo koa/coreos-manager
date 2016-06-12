@@ -1,6 +1,16 @@
 ignition:
   version: 2.0.0
 storage:
+#if($discs.size()>1)
+#foreach($disk in $discs.subList(1,$discs.size()))
+  disks:
+  - device: $disk
+    wipeTable: true
+    partitions:
+    - size: 0
+      start: 0
+#end
+#end
   filesystems:
   - mount:
       device: /dev/disk/by-label/ROOT
@@ -17,6 +27,20 @@ systemd:
       [Service]
       Type=oneshot
       ExecStart=/usr/bin/echo Hello World
+      
+      [Install]
+      WantedBy=multi-user.target
+  - name: init.service
+    enable: true
+    contents: |
+      [Service]
+      Type=oneshot
+#if($discs.size()>1)
+#foreach($disk in $discs.subList(1,$discs.size()))
+      ExecStart=/usr/sbin/btrfs device add ${disk}1 /
+#end
+#end
+      ExecStart=/usr/bin/systemctl disable init.service
       
       [Install]
       WantedBy=multi-user.target

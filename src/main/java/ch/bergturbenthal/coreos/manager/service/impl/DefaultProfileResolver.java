@@ -67,7 +67,7 @@ public class DefaultProfileResolver implements ProfileResolver {
 				while (csvIterator.hasNext()) {
 					final String[] dataLine = csvIterator.next();
 					final int columnCount = Math.min(header.length, dataLine.length);
-					final Map<String, String> content = new HashMap<String, String>();
+					final Map<String, String[]> content = new HashMap<String, String[]>();
 					final Map<String, String> keyData = new HashMap<String, String>();
 					for (int i = 0; i < columnCount; i++) {
 						final String columnName = header[i];
@@ -81,7 +81,7 @@ public class DefaultProfileResolver implements ProfileResolver {
 						if (columnName.startsWith("key.")) {
 							keyData.put(columnName.substring(4), value);
 						} else {
-							content.put(columnName, value);
+							content.put(columnName, value.split(";"));
 						}
 					}
 					if (keyData.entrySet().stream().allMatch((Predicate<Entry<String, String>>) e -> {
@@ -91,8 +91,9 @@ public class DefaultProfileResolver implements ProfileResolver {
 						}
 						return Stream.of(values).anyMatch(v -> v.equals(e.getValue()));
 					})) {
-						content.forEach((BiConsumer<String, String>) (t, u) -> properties.merge(t,
-																																										new String[] { u },
+						content.forEach((BiConsumer<String, String[]>) (t,
+																														u) -> properties.merge(	t,
+																																										u,
 																																										(BiFunction<String[], String[], ? extends String[]>) (t1,
 																																																																					u1) -> ArrayUtils.addAll(	u1,
 																																																																																		t1)));
