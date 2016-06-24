@@ -1,0 +1,147 @@
+ignition:
+  version: 2.0.0
+storage:
+#if($discs.size()>1)
+#foreach($disk in $discs.subList(1,$discs.size()))
+  disks:
+  - device: $disk
+    wipeTable: true
+    partitions:
+    - size: 0
+      start: 0
+      label: root-$disk
+#end
+#end
+  filesystems:
+  - mount:
+      device: /dev/disk/by-label/ROOT
+      format: btrfs
+      create:
+        force: true
+        options:
+        - --label=ROOT
+systemd:
+  units:
+  - name: init.service
+    enable: true
+    contents: |
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+#if($discs.size()>1)
+#foreach($disk in $discs.subList(1,$discs.size()))
+      ExecStart=/usr/sbin/btrfs device add ${disk}1 /
+#end
+#end
+      ExecStart=/usr/bin/systemctl disable init.service
+      
+      [Install]
+      WantedBy=multi-user.target
+  - name: etcd2.service
+    enable: true
+    dropins:
+      - name: 40-etcd-cluster.conf
+        contents: |
+          [Service]
+          Environment="ETCD_NAME=$etcd_name[0]"
+          Environment="ETCD_ADVERTISE_CLIENT_URLS=http://$ipv4_address[0]:2379"
+          Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$ipv4_address[0]:2380"
+          Environment="ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379"
+          Environment="ETCD_LISTEN_PEER_URLS=http://$ipv4_address[0]:2380"
+          Environment="ETCD_INITIAL_CLUSTER=$etcd_initial_cluster[0]"
+          Environment="ETCD_STRICT_RECONFIG_CHECK=true"
+  - name: fleet.service
+    enable: true
+    dropins:
+      - name: 40-fleet-metadata.conf
+        contents: |
+          [Service]
+          Environment="FLEET_METADATA=$fleet_metadata[0]"
+  - name: flanneld.service
+    dropins:
+      - name: 40-ExecStartPre-symlink.conf
+        contents: |
+          [Service]
+          ExecStartPre=/usr/bin/ln -sf /etc/flannel/options.env /run/flannel/options.env
+          ExecStartPre=/opt/init-flannel
+  - name: docker.service
+    dropins:
+      - name: 40-flannel.conf
+        contents: |
+          [Unit]
+          Requires=flanneld.service
+          After=flanneld.service
+  - name: k8s-certs.service
+    contents: |
+      [Unit]
+      Description=Fetch Kubernetes certificate assets
+      Requires=network-online.target
+      After=network-online.target
+      [Service]
+      ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/ssl
+      ExecStart=/usr/bin/bash -c "[ -f /etc/kubernetes/ssl/%i ] || curl $k8s_cert_endpoint[0]/tls/%i -o /etc/kubernetes/ssl/%i"
+  - name: k8s-assets.target
+    contents: |
+      [Unit]
+      Description=Load Kubernetes Assets
+      Requires=k8s-certs@apiserver.pem.service
+      After=k8s-certs@apiserver.pem.service
+      Requires=k8s-certs@apiserver-key.pem.service
+      After=k8s-certs@apiserver-key.pem.service
+      Requires=k8s-certs@ca.pem.service
+      After=k8s-certs@ca.pem.service
+  - name: kubelet.service
+    enable: true
+    contents: |
+      [Unit]
+      Description=Kubelet via Hyperkube ACI
+      Requires=flanneld.service
+      After=flanneld.service
+      Requires=k8s-assets.target
+      After=k8s-assets.target
+      [Service]
+      ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+      Environment=KUBELET_VERSION=v1.2.4_coreos.1
+      ExecStart=/usr/lib/coreos/kubelet-wrapper \
+        --api-servers=http://127.0.0.1:8080 \
+        --register-schedulable=true \
+        --allow-privileged=true \
+        --config=/etc/kubernetes/manifests \
+        --hostname-override=$ipv4_address[0] \
+        --cluster_dns=$k8s_dns_service_ip[0] \
+        --cluster_domain=cluster.local
+      Restart=always
+      RestartSec=10
+      [Install]
+      WantedBy=multi-user.target
+  - name: k8s-addons.service
+    enable: true
+    contents: |
+      [Unit]
+      Description=Kubernetes Addons
+      Requires=kubelet.service
+      After=kubelet.service
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/k8s-addons
+      [Install]
+      WantedBy=multi-user.target
+networkd:
+  units:
+  - name: eth0.network
+    contents: |
+      [Match]
+      Name=eth0
+
+      [Network]
+      Address=$ipv4_address[0]/24
+      Gateway=192.168.122.1
+#if($ssh_authorized_keys)
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+#foreach($key in $ssh_authorized_keys)
+        - $key
+#end
+#end

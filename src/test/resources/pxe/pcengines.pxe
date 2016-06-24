@@ -1,0 +1,4 @@
+#!ipxe
+kernel /kernel/stable console=ttyS0,115200n8 coreos.autologin=ttyS0 coreos.config.url=$resolver.resolve("ignition/install-reboot.yml") coreos.first_boot root=/dev/sda1
+initrd /initrd/stable
+boot

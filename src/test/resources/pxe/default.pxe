@@ -1,0 +1,4 @@
+#!ipxe
+kernel /kernel/stable
+initrd /initrd
+boot

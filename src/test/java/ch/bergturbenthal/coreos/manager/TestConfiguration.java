@@ -15,7 +15,8 @@ public class TestConfiguration {
 		final URI profilesBase = new ClassPathResource("profiles/default.yml").getURI().resolve(".");
 		config.setProfileBase(profilesBase);
 		config.setIgnitionBase(profilesBase.resolve("../ignition/"));
-		config.setMacPropertiesConfiguration(new ClassPathResource("csv/test.csv").getURI());
+		config.setBootfileBase(profilesBase.resolve("../pxe/"));
+		config.setMacPropertiesConfiguration(new ClassPathResource("csv/test.csv"));
 		return config;
 	}
 }
