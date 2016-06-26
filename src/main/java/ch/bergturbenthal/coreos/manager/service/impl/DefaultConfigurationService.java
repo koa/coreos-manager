@@ -1,52 +1,211 @@
 package ch.bergturbenthal.coreos.manager.service.impl;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URI;
-import java.util.List;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.Callable;
 
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.commons.collections.ExtendedProperties;
+import org.apache.commons.io.Charsets;
+import org.apache.commons.io.IOUtils;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.Velocity;
+import org.apache.velocity.context.Context;
+import org.apache.velocity.exception.ResourceNotFoundException;
+import org.apache.velocity.runtime.RuntimeConstants;
+import org.apache.velocity.runtime.RuntimeServices;
+import org.apache.velocity.runtime.RuntimeSingleton;
+import org.apache.velocity.runtime.resource.loader.ResourceLoader;
+import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.lib.ObjectLoader;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.yaml.snakeyaml.Yaml;
 
-import ch.bergturbenthal.coreos.manager.config.Configuration;
 import ch.bergturbenthal.coreos.manager.service.ConfigurationService;
+import ch.bergturbenthal.coreos.manager.service.GitAccessService;
 import ch.bergturbenthal.coreos.manager.service.PropertiesService;
-import ch.bergturbenthal.coreos.manager.service.TemplateLoader;
+import lombok.Cleanup;
 
 @Service
 public class DefaultConfigurationService implements ConfigurationService {
 
-	private final URI bootfileBase;
-	private final URI ignitionBase;
-	private final Map<String, List<String>> properties;
+	private static interface Converter {
+		Resource convert(Resource value);
+	}
+
+	public final class TemplateUtils {
+		private final String mac;
+
+		public TemplateUtils(final String mac) {
+			this.mac = mac;
+		}
+
+		public String load(final String file) throws IOException {
+			final Resource loadedFile = generateFile(file, mac);
+			@Cleanup
+			final InputStream inputStream = loadedFile.getInputStream();
+			return IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+		}
+
+		public String resolve(final String relative) {
+			final HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+			return UriComponentsBuilder.fromHttpRequest(new ServletServerHttpRequest(request)).replacePath(request.getContextPath()).path(relative).toUriString();
+		}
+
+		public String resolvePlain(final String relative) {
+			final HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+			return UriComponentsBuilder	.fromHttpRequest(new ServletServerHttpRequest(request))
+																	.replacePath(request.getContextPath())
+																	.path(relative)
+																	.replaceQuery(null)
+																	.toUriString();
+		}
+	}
+
+	private static Converter DEFAULT_CONVERTER = new Converter() {
+
+		@Override
+		public Resource convert(final Resource value) {
+			return value;
+		}
+	};
+	private static final String JSON_ENDING = ".json";
+
+	private static Converter YAML_JSON_CONVERTER = new Converter() {
+
+		@Override
+		public Resource convert(final Resource value) {
+			try {
+				final Yaml yaml = new Yaml();
+				final Map<String, Object> data = (Map<String, Object>) yaml.load(value.getInputStream());
+				final JSONObject jsonObject = new JSONObject(data);
+				return new ByteArrayResource(jsonObject.toString(2).getBytes(StandardCharsets.UTF_8));
+			} catch (final IOException e) {
+				throw new RuntimeException("Cannot convert resource " + value + " to json", e);
+			}
+		}
+	};
+
+	private final ThreadLocal<Context> currentRunningContext = new ThreadLocal<>();
+	private final GitAccessService gitAccessService;
 	private final PropertiesService propertiesService;
-	private final TemplateLoader templateLoader;
 
 	@Autowired
-	public DefaultConfigurationService(final PropertiesService propertiesService, final Configuration configuration, final TemplateLoader templateLoader) {
+	public DefaultConfigurationService(final PropertiesService propertiesService, final GitAccessService gitAccessService) {
 		this.propertiesService = propertiesService;
-		this.templateLoader = templateLoader;
-		ignitionBase = configuration.getIgnitionBase();
-		properties = configuration.getProperties();
-		bootfileBase = configuration.getBootfileBase();
+		this.gitAccessService = gitAccessService;
+		final RuntimeServices runtimeServices = RuntimeSingleton.getRuntimeServices();
+		runtimeServices.addProperty(RuntimeConstants.RESOURCE_LOADER, "delegate");
+		runtimeServices.addProperty("delegate.resource.loader.class", DelegatingResourceLoader.class.getName());
 	}
 
 	@Override
-	public String generateIgnition(final String file, final String mac) throws IOException {
-		final String yamlTemplate = templateLoader.loadTemplate(ignitionBase, file, mac);
-		final Yaml yaml = new Yaml();
-		final Map<String, Object> data = (Map<String, Object>) yaml.load(yamlTemplate);
-		final JSONObject jsonObject = new JSONObject(data);
-		return jsonObject.toString();
+	public Resource generateFile(final String relativePath, final String mac) throws IOException {
+		final Map<String, Converter> fileCandidates = new LinkedHashMap<String, Converter>();
+		fileCandidates.put(relativePath, DEFAULT_CONVERTER);
+		if (relativePath.endsWith(JSON_ENDING)) {
+			final String yamlFile = relativePath.subSequence(0, relativePath.length() - JSON_ENDING.length()) + ".yml";
+			fileCandidates.put(yamlFile, YAML_JSON_CONVERTER);
+		}
+
+		final Map<String, ObjectLoader> foundFiles = gitAccessService.findFiles(fileCandidates.keySet());
+		for (final Entry<String, Converter> fileEntry : fileCandidates.entrySet()) {
+			final ObjectLoader foundLoader = foundFiles.get(fileEntry.getKey());
+			if (foundLoader == null) {
+				continue;
+			}
+			return fileEntry.getValue().convert(loadTemplate(foundLoader, relativePath, mac, new TemplateUtils(mac)));
+		}
+		throw new FileNotFoundException("none of " + fileCandidates.keySet() + " found");
 	}
 
 	@Override
-	public String generatePXE(final String mac) throws IOException {
-		final String pxeFile = propertiesService.valuesOfKey("mac", mac, "pxe").findFirst().orElse("default") + ".pxe";
-		return templateLoader.loadTemplate(bootfileBase, pxeFile, mac);
+	public Resource generatePXE(final String mac) throws IOException {
+		final String pxeFile = "pxe/" + propertiesService.valuesOfKey("mac", mac, "pxe").findFirst().orElse("default") + ".pxe";
+		return generateFile(pxeFile, mac);
 
+	}
+
+	private Resource loadTemplate(final ObjectLoader loader, final String templateName, final String mac, final Object utils) throws IOException {
+
+		final Context currentContext = currentRunningContext.get();
+		if (currentContext != null) {
+			return processInternal(loader, templateName, currentContext);
+		}
+		final Context context = new VelocityContext();
+		context.put("mac", mac);
+		context.put("props", propertiesService);
+		context.put("util", utils);
+		currentRunningContext.set(context);
+		try {
+			return processInternal(loader, templateName, context);
+		} finally {
+			currentRunningContext.set(null);
+		}
+	}
+
+	private Resource processInternal(final ObjectLoader loader, final String templateName, final Context context) throws MissingObjectException, IOException {
+		@Cleanup
+		final InputStream profileStream = loader.openStream();
+
+		final ResourceLoader manager = new ResourceLoader() {
+
+			@Override
+			public long getLastModified(final org.apache.velocity.runtime.resource.Resource resource) {
+				return gitAccessService.getLastModified();
+			}
+
+			@Override
+			public InputStream getResourceStream(final String source) throws ResourceNotFoundException {
+				try {
+					return gitAccessService	.findFiles(Collections.singleton(source))
+																	.values()
+																	.stream()
+																	.findFirst()
+																	.orElseThrow(() -> new ResourceNotFoundException(source + " not found"))
+																	.openStream();
+				} catch (final IOException e) {
+					throw new ResourceNotFoundException("Cannot access resource " + source, e);
+				}
+			}
+
+			@Override
+			public void init(final ExtendedProperties configuration) {
+				// ignore
+			}
+
+			@Override
+			public boolean isSourceModified(final org.apache.velocity.runtime.resource.Resource resource) {
+				return resource.getLastModified() != gitAccessService.getLastModified();
+			}
+		};
+		return DelegatingResourceLoader.callWithLoader(new Callable<Resource>() {
+
+			@Override
+			public Resource call() throws Exception {
+				final StringWriter writer = new StringWriter();
+				Velocity.evaluate(context, writer, "template-" + templateName, new InputStreamReader(profileStream, Charsets.UTF_8));
+				writer.flush();
+				return new ByteArrayResource(writer.toString().getBytes(Charsets.UTF_8));
+			}
+		}, manager);
 	}
 
 }

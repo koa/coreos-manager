@@ -1,3 +1,4 @@
+#parse("include/kubernetes.vm")
 ignition:
   version: 2.0.0
 storage:
@@ -20,6 +21,13 @@ storage:
         force: true
         options:
         - --label=ROOT
+    files:
+        - path: /etc/kubernetes/manifests/kube-proxy.yaml
+          contents: 
+            source: $util.resolve("config/igniton/files/kube-proxy.yaml")
+        - path: /etc/flannel/options.env
+          contents:
+            source: $util.resolve("config/igniton/files/options.env")
 systemd:
   units:
   - name: init.service
@@ -43,11 +51,11 @@ systemd:
       - name: 40-etcd-cluster.conf
         contents: |
           [Service]
-          Environment="ETCD_NAME=$etcd_name[0]"
-          Environment="ETCD_ADVERTISE_CLIENT_URLS=http://$ipv4_address[0]:2379"
-          Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$ipv4_address[0]:2380"
+          Environment="ETCD_NAME=$hostname"
+          Environment="ETCD_ADVERTISE_CLIENT_URLS=http://$ipv4Address:2379"
+          Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$ipv4Address:2380"
           Environment="ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379"
-          Environment="ETCD_LISTEN_PEER_URLS=http://$ipv4_address[0]:2380"
+          Environment="ETCD_LISTEN_PEER_URLS=http://$ipv4Address:2380"
           Environment="ETCD_INITIAL_CLUSTER=$etcd_initial_cluster[0]"
           Environment="ETCD_STRICT_RECONFIG_CHECK=true"
   - name: fleet.service
@@ -107,7 +115,7 @@ systemd:
         --register-schedulable=true \
         --allow-privileged=true \
         --config=/etc/kubernetes/manifests \
-        --hostname-override=$ipv4_address[0] \
+        --hostname-override=$ipv4Address \
         --cluster_dns=$k8s_dns_service_ip[0] \
         --cluster_domain=cluster.local
       Restart=always
@@ -134,14 +142,12 @@ networkd:
       Name=eth0
 
       [Network]
-      Address=$ipv4_address[0]/24
+      Address=$ipv4Address/24
       Gateway=192.168.122.1
-#if($ssh_authorized_keys)
 passwd:
   users:
     - name: core
+#if($sshKey)
       ssh_authorized_keys:
-#foreach($key in $ssh_authorized_keys)
-        - $key
-#end
+        - $util.load("keys/${sshKey}.pub")
 #end

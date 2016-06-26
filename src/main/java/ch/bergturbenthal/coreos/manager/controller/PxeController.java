@@ -1,9 +1,12 @@
 package ch.bergturbenthal.coreos.manager.controller;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,16 +27,16 @@ public class PxeController {
 
 	@RequestMapping(path = { "boot.ipxe", "boot.ipxe.0" }, produces = "text/plain")
 	public String boot() {
-		return "#!ipxe\nchain ipxe?uuid=${uuid}&mac=${net0/mac:hexhyp}";
+		return "#!ipxe\nchain ipxe?mac=${net0/mac:hexhyp}";
 	}
 
 	@RequestMapping(path = "ipxe", produces = "text/plain")
-	public String bootWithParams(@RequestParam("mac") final String mac) {
+	public Resource bootWithParams(@RequestParam("mac") final String mac) {
 		try {
 			return configurationService.generatePXE(mac);
 		} catch (final Exception ex) {
 			log.error("Cannot process data for " + mac, ex);
-			return "Error";
+			return new ByteArrayResource("Error".getBytes(StandardCharsets.UTF_8));
 		}
 	}
 
@@ -53,4 +56,5 @@ public class PxeController {
 	public FileSystemResource loadKernel(@PathVariable("channel") final String channel) throws IOException {
 		return assetService.getKernel(channel);
 	}
+
 }

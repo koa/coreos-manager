@@ -1,0 +1,12 @@
+#set( $D = '$' )
+#set( $console = $props.valuesOfKey("mac",$mac,"console").findFirst().orElse("tty0") )
+#set( $channel = $props.valuesOfKey("mac",$mac,"channel").findFirst().orElse("stable") )
+#if($console.startsWith("ttyS"))
+#set( $consoleWithSpeed=$console+",115200n8")
+#else
+#set( $consoleWithSpeed=$console)
+#end
+#!ipxe
+kernel /kernel/$channel console=$consoleWithSpeed coreos.autologin=$console coreos.config.url=$util.resolve("config/ignition/install-reboot.json") coreos.first_boot
+initrd /initrd/$channel
+boot

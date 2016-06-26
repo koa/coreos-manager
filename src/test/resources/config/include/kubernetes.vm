@@ -1,0 +1,25 @@
+#set( $D = '$' )
+#set( $discs = $props.valuesOfKey("mac",$mac,"discs").findFirst().orElse("/dev/sda").split(";") )
+#set( $ipv4Address = $props.valuesOfKey("mac",$mac,"ipv4_address").findFirst().get() )
+#set( $hostname = $props.valuesOfKey("mac",$mac,"hostname").findFirst().get() )
+#set( $console = $props.valuesOfKey("mac",$mac,"console").findFirst().orElse("tty0") )
+#set( $channel = $props.valuesOfKey("mac",$mac,"channel").findFirst().orElse("stable") )
+#set( $install = $props.valuesOfKey("mac",$mac,"installedProfile").findFirst().orElse("hello-world") )
+#set( $otherHosts = $props.allPropertiesOfKey("installedProfile",$install).toArray() )
+##
+##
+#set( $etcdEndpoints = "")
+#foreach($otherHostData in $otherHosts)
+#set($otherHostAddress=$otherHostData.get("ipv4_address"))
+#if($foreach.hasNext)
+#set($etcdEndpoints="${etcdEndpoints}http://${otherHostAddress}:2379,")
+#else
+#set($etcdEndpoints="${etcdEndpoints}http://${otherHostAddress}:2379")
+#end
+#end
+#if($console.startsWith("ttyS"))
+#set( $consoleWithSpeed=$console+",115200n8")
+#else
+#set( $consoleWithSpeed=$console)
+#end
+#set( $sshKey = $props.valuesOfKey("mac",$mac,"ssh-key").findFirst().orElse(null) )

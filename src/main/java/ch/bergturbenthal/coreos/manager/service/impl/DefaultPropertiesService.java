@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -82,7 +83,7 @@ public class DefaultPropertiesService implements PropertiesService {
 				if (row.length <= resultIndex.intValue()) {
 					return null;
 				}
-				return row[resultIndex.intValue()];
+				return StringUtils.stripToNull(row[resultIndex.intValue()]);
 
 			}
 		}).filter(t -> t != null);

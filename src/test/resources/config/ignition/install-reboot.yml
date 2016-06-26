@@ -1,0 +1,51 @@
+#set( $D = '$' )
+#set( $discs = $props.valuesOfKey("mac",$mac,"discs").findFirst().orElse("/dev/sda").split(";") )
+#set( $console = $props.valuesOfKey("mac",$mac,"console").findFirst().orElse("tty0") )
+#set( $channel = $props.valuesOfKey("mac",$mac,"channel").findFirst().orElse("stable") )
+#set( $install = $props.valuesOfKey("mac",$mac,"installedProfile").findFirst().orElse("hello-world") )
+#if($console.startsWith("ttyS"))
+#set( $consoleWithSpeed=$console+",115200n8")
+#else
+#set( $consoleWithSpeed=$console)
+#end
+#set( $sshKey = $props.valuesOfKey("mac",$mac,"ssh-key").findFirst().orElse(null) )
+ignition:
+  version: 2.0.0
+systemd:
+  units:
+    - name: install.service
+      enable: true
+      contents: |
+        [Unit]
+        Requires=network-online.target
+        After=network-online.target
+        OnFailure=retry.service
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/curl $util.resolve("config/ignition/${install}.json") -o ignition.json
+        ExecStart=/bin/bash -c "/usr/bin/coreos-install -d $discs[0] -i ignition.json -b $util.resolvePlain("proxy/${channel}")"
+        ExecStart=/usr/bin/udevadm settle
+        ExecStart=/usr/bin/mount $discs[0]6 /boot/
+        ExecStart=/usr/bin/sed -i 's/.${D}/ console=$consoleWithSpeed coreos.autologin=$console"/' /boot/grub.cfg
+        ExecStart=/usr/bin/udevadm settle
+        ExecStart=/usr/bin/umount /boot/
+        ExecStart=/usr/bin/systemctl reboot
+        [Install]
+        WantedBy=multi-user.target
+    - name: retry.service
+      enable: true
+      contents: |
+        [Unit]
+        Description=Retry install
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/dd if=/dev/zero of=$discs[0] bs=1M count=1
+        ExecStart=/usr/bin/systemctl reboot
+      
+passwd:
+  users:
+    - name: core
+#if($sshKey)
+      ssh_authorized_keys:
+        - $util.load("keys/${sshKey}.pub")
+#end

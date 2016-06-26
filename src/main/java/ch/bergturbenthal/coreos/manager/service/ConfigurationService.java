@@ -2,10 +2,12 @@ package ch.bergturbenthal.coreos.manager.service;
 
 import java.io.IOException;
 
+import org.springframework.core.io.Resource;
+
 public interface ConfigurationService {
 
-	String generateIgnition(String filename, String mac) throws IOException;
+	Resource generateFile(String relativePath, String mac) throws IOException;
 
-	String generatePXE(String filename) throws IOException;
+	Resource generatePXE(String mac) throws IOException;
 
 }

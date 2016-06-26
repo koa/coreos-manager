@@ -1,4 +1,4 @@
-hostname,mac,pxe,profile,ipv4_address,discs,installedProfile
-impossible-bee,00-0d-b9-35-b7-9c,pcengines,default,,/dev/sda,
-km1,52-54-00-66-cb-cb,pcengines,kubernetes-test-cluster,192.168.122.253,/dev/vda,k8s-master-installed
-km2,52-54-00-66-cb-cc,pcengines,kubernetes-test-cluster,192.168.122.254,/dev/vda;/dev/vdb,k8s-master-installed
+hostname,mac,boot,channel,ipv4_address,discs,installedProfile,console,ssh-key
+impossible-bee,00-0d-b9-35-b7-9c,default,,192.168.122.252,/dev/sda,k8s-master,ttyS0,akoenig
+km1,52-54-00-66-cb-cb,default,beta,192.168.122.253,/dev/vda,k8s-master,ttyS0,akoenig
+km2,52-54-00-66-cb-cc,default,beta,192.168.122.254,/dev/vda;/dev/vdb,k8s-master,ttyS0,akoenig

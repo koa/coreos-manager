@@ -4,11 +4,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.Resource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import ch.bergturbenthal.coreos.manager.service.ConfigurationService;
@@ -36,21 +38,42 @@ public class CoreosManagerApplicationTests {
 
 	@Test
 	public void testIgnition() throws IOException {
-		final String ignition = configurationService.generateIgnition("default", "00-0d-b9-35-b7-9c");
-		log.info("------ Ignition ------\n" + ignition);
+		final Resource ignition = configurationService.generateFile("ignition/install-reboot.json", "00-0d-b9-35-b7-9c");
+		for (final String line : IOUtils.readLines(ignition.getInputStream())) {
+			log.info("- Ignition -" + line);
 
+		}
+	}
+
+	@Test
+	public void testIgnitionK8sMaster() throws IOException {
+		for (final String line : IOUtils.readLines(configurationService.generateFile("ignition/k8s-master.yml", "00-0d-b9-35-b7-9c").getInputStream())) {
+			log.info("- i-k8s-m - " + line);
+
+		}
+		for (final String line : IOUtils.readLines(configurationService.generateFile("ignition/files/options.env", "00-0d-b9-35-b7-9c").getInputStream())) {
+			log.info("- e-k8s-m - " + line);
+
+		}
 	}
 
 	@Test
 	public void testPxe() throws IOException {
-		final String pxe = configurationService.generatePXE("00-0d-b9-35-b7-9c");
-		log.info("------ PXE ------\n" + pxe);
+		final Resource pxe = configurationService.generatePXE("00-0d-b9-35-b7-9c");
+		for (final String line : IOUtils.readLines(pxe.getInputStream())) {
+			log.info("- PXE -" + line);
+
+		}
+
 	}
 
 	@Test
 	public void testPxe2() throws IOException {
-		final String pxe = configurationService.generatePXE("123");
-		log.info("------ PXE2 ------\n" + pxe);
+		final Resource pxe = configurationService.generatePXE("123");
+		for (final String line : IOUtils.readLines(pxe.getInputStream())) {
+			log.info("- PXE2 -" + line);
+
+		}
 	}
 
 }

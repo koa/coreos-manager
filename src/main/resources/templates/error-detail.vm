@@ -1,0 +1,4 @@
+Cannot query <span style="font-family:monospace">$url</span>
+<pre>
+$stringUtils.stackTrace($exception)
+</pre>

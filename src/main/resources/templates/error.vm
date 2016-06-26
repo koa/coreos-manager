@@ -1,2 +1,4 @@
-Something went wrong: ${status} ${error}
+<pre>
 $message
+$exception
+</pre>
