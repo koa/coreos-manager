@@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
 
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.commons.codec.binary.Base64InputStream;
 import org.apache.commons.collections.ExtendedProperties;
 import org.apache.commons.io.Charsets;
 import org.apache.commons.io.IOUtils;
@@ -64,6 +65,10 @@ public class DefaultConfigurationService implements ConfigurationService {
 			return IOUtils.toString(inputStream, StandardCharsets.UTF_8);
 		}
 
+		public int oct2dec(final int octAsInt) {
+			return Integer.parseInt(Integer.toString(octAsInt), 8);
+		}
+
 		public String resolve(final String relative) {
 			final HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
 			return UriComponentsBuilder.fromHttpRequest(new ServletServerHttpRequest(request)).replacePath(request.getContextPath()).path(relative).toUriString();
@@ -76,6 +81,13 @@ public class DefaultConfigurationService implements ConfigurationService {
 																	.path(relative)
 																	.replaceQuery(null)
 																	.toUriString();
+		}
+
+		public String source(final String contentType, final String path) throws IOException {
+			final Resource resource = generateFile(path, mac);
+			final InputStreamReader reader = new InputStreamReader(new Base64InputStream(resource.getInputStream(), true, -1, null), StandardCharsets.UTF_8);
+			return "data:" + contentType + ";base64," + IOUtils.toString(reader);
+
 		}
 	}
 

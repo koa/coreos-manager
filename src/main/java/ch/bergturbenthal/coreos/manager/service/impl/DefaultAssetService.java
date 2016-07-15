@@ -4,14 +4,21 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 
 import javax.annotation.PreDestroy;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.client.ClientHttpRequest;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 
 import ch.bergturbenthal.coreos.manager.config.Configuration;
@@ -24,9 +31,11 @@ import lombok.extern.slf4j.Slf4j;
 public class DefaultAssetService implements AssetService {
 	private final File cacheDir;
 	private final boolean cleanupCacheDir;
+	private final ClientHttpRequestFactory clientHttpRequestFactory;
 
 	@Autowired
 	public DefaultAssetService(final Configuration config) throws IOException {
+		this.clientHttpRequestFactory = new SimpleClientHttpRequestFactory();
 		final File configuredCacheDir = config.getCacheDir();
 		if (configuredCacheDir == null) {
 			final File tempFile = File.createTempFile("coreos-cache", "");
@@ -47,22 +56,37 @@ public class DefaultAssetService implements AssetService {
 		}
 	}
 
-	private File downloadUrl(final String targetFilename, final URL url) throws IOException {
-		final File cachedFile = new File(cacheDir, targetFilename);
-		if (!cachedFile.exists()) {
-			cachedFile.getParentFile().mkdirs();
-			log.info("Download " + url + " -> " + targetFilename);
-			final File tempFile = File.createTempFile("download", "", cacheDir);
-			{
-				@Cleanup
-				final InputStream is = url.openStream();
-				@Cleanup
-				final FileOutputStream os = new FileOutputStream(tempFile);
-				IOUtils.copyLarge(is, os);
+	private File downloadUrl(final String targetFilename, final URL url) {
+		try {
+			final File cachedFile = new File(cacheDir, targetFilename);
+			while (!cachedFile.exists()) {
+				try {
+					final File tempFile = File.createTempFile("download", "", cacheDir);
+					try {
+						cachedFile.getParentFile().mkdirs();
+						log.info("Download " + url + " -> " + targetFilename);
+						{
+							final ClientHttpRequest clientHttpRequest = clientHttpRequestFactory.createRequest(url.toURI(), HttpMethod.GET);
+							final ClientHttpResponse response = clientHttpRequest.execute();
+							@Cleanup
+							final InputStream is = response.getBody();
+							final ReadableByteChannel rbc = Channels.newChannel(is);
+							@Cleanup
+							final FileOutputStream os = new FileOutputStream(tempFile);
+							os.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+						}
+						tempFile.renameTo(cachedFile);
+					} finally {
+						tempFile.delete();
+					}
+				} catch (final IOException e) {
+					log.error("Error downloadind File", e);
+				}
 			}
-			tempFile.renameTo(cachedFile);
+			return cachedFile;
+		} catch (final URISyntaxException e) {
+			throw new RuntimeException("Cannot parse uri", e);
 		}
-		return cachedFile;
 	}
 
 	@Override

@@ -14,20 +14,23 @@ storage:
 #end
 #end
   filesystems:
-  - mount:
-      device: /dev/disk/by-label/ROOT
+  - name: root
+    mount:
+      device: $discs[0]
       format: btrfs
       create:
         force: true
         options:
         - --label=ROOT
-    files:
-        - path: /etc/kubernetes/manifests/kube-proxy.yaml
-          contents: 
-            source: $util.resolve("config/igniton/files/kube-proxy.yaml")
-        - path: /etc/flannel/options.env
-          contents:
-            source: $util.resolve("config/igniton/files/options.env")
+  files:
+  - filesystem: root
+    path: /etc/kubernetes/manifests/kube-proxy.yaml
+    contents: 
+      source: $util.source("text/yaml","ignition/files/kube-proxy.yaml")      
+  - filesystem: root
+    path: /etc/flannel/options.env
+    contents:
+      source: $util.source("text/plain","ignition/files/options.env")
 systemd:
   units:
   - name: init.service
@@ -38,7 +41,7 @@ systemd:
       RemainAfterExit=yes
 #if($discs.size()>1)
 #foreach($disk in $discs.subList(1,$discs.size()))
-      ExecStart=/usr/sbin/btrfs device add ${disk}1 /
+      ExecStart=/usr/sbin/btrfs device add -f ${disk}1 /
 #end
 #end
       ExecStart=/usr/bin/systemctl disable init.service
