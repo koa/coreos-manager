@@ -6,11 +6,17 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -58,6 +64,31 @@ public class DefaultConfigurationService implements ConfigurationService {
 			this.mac = mac;
 		}
 
+		public String joinPattern(final String column, final String key, final String pattern) {
+			final Matcher matcher = Pattern.compile("\\{[a-zA-Z0-9_-]+\\}").matcher(pattern);
+			final List<String> patternResult = new ArrayList<String>();
+			int lastEnd = 0;
+			while (matcher.find()) {
+				final int start = matcher.start();
+				patternResult.add(pattern.substring(lastEnd, start));
+				lastEnd = matcher.end();
+				patternResult.add(pattern.substring(start + 1, lastEnd - 1));
+			}
+			patternResult.add(pattern.substring(lastEnd));
+			return propertiesService.allPropertiesOfKey(column, key).map((Function<Map<String, String>, String>) t -> {
+				final StringBuilder sb = new StringBuilder();
+				for (int i = 0; i < patternResult.size(); i++) {
+					final String patternPart = patternResult.get(i);
+					if (i % 2 == 0) {
+						sb.append(patternPart);
+					} else {
+						sb.append(t.get(patternPart));
+					}
+				}
+				return sb.toString();
+			}).collect(Collectors.joining(","));
+		}
+
 		public String load(final String file) throws IOException {
 			final Resource loadedFile = generateFile(file, mac);
 			@Cleanup
@@ -87,7 +118,6 @@ public class DefaultConfigurationService implements ConfigurationService {
 			final Resource resource = generateFile(path, mac);
 			final InputStreamReader reader = new InputStreamReader(new Base64InputStream(resource.getInputStream(), true, -1, null), StandardCharsets.UTF_8);
 			return "data:" + contentType + ";base64," + IOUtils.toString(reader);
-
 		}
 	}
 

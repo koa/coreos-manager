@@ -59,7 +59,7 @@ systemd:
           Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$ipv4Address:2380"
           Environment="ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379"
           Environment="ETCD_LISTEN_PEER_URLS=http://$ipv4Address:2380"
-          Environment="ETCD_INITIAL_CLUSTER=$etcd_initial_cluster[0]"
+          Environment="ETCD_INITIAL_CLUSTER=$util.joinPattern("installedProfile",$install,"{hostname}=http://{ipv4_address}:2380")
           Environment="ETCD_STRICT_RECONFIG_CHECK=true"
   - name: fleet.service
     enable: true
