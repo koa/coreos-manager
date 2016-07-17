@@ -31,6 +31,11 @@ storage:
     path: /etc/flannel/options.env
     contents:
       source: $util.source("text/plain","ignition/files/options.env")
+  - filesystem: root
+    path: /etc/kubernetes/ssl/ca.pem
+    mode: $util.oct2dec(0644)
+    contents:
+      source: $util.sourceEncode("text/pem",$keyGenerator.rootCertificate("test.local"))
 systemd:
   units:
   - name: init.service

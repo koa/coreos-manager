@@ -74,6 +74,11 @@
 			<artifactId>org.eclipse.jgit</artifactId>
 			<version>4.4.0.201606070830-r</version>
 		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcpkix-jdk15on</artifactId>
+			<version>1.54</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>

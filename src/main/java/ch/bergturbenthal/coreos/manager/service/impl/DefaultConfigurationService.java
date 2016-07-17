@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +48,7 @@ import org.yaml.snakeyaml.Yaml;
 
 import ch.bergturbenthal.coreos.manager.service.ConfigurationService;
 import ch.bergturbenthal.coreos.manager.service.GitAccessService;
+import ch.bergturbenthal.coreos.manager.service.KeyGenerator;
 import ch.bergturbenthal.coreos.manager.service.PropertiesService;
 import lombok.Cleanup;
 
@@ -119,6 +121,10 @@ public class DefaultConfigurationService implements ConfigurationService {
 			final InputStreamReader reader = new InputStreamReader(new Base64InputStream(resource.getInputStream(), true, -1, null), StandardCharsets.UTF_8);
 			return "data:" + contentType + ";base64," + IOUtils.toString(reader);
 		}
+
+		public String sourceEncode(final String contentType, final String data) throws IOException {
+			return "data:" + contentType + ";base64," + Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8));
+		}
 	}
 
 	private static Converter DEFAULT_CONVERTER = new Converter() {
@@ -147,12 +153,14 @@ public class DefaultConfigurationService implements ConfigurationService {
 
 	private final ThreadLocal<Context> currentRunningContext = new ThreadLocal<>();
 	private final GitAccessService gitAccessService;
+	private final KeyGenerator keyGenerator;
 	private final PropertiesService propertiesService;
 
 	@Autowired
-	public DefaultConfigurationService(final PropertiesService propertiesService, final GitAccessService gitAccessService) {
+	public DefaultConfigurationService(final PropertiesService propertiesService, final GitAccessService gitAccessService, final KeyGenerator keyGenerator) {
 		this.propertiesService = propertiesService;
 		this.gitAccessService = gitAccessService;
+		this.keyGenerator = keyGenerator;
 		final RuntimeServices runtimeServices = RuntimeSingleton.getRuntimeServices();
 		runtimeServices.addProperty(RuntimeConstants.RESOURCE_LOADER, "delegate");
 		runtimeServices.addProperty("delegate.resource.loader.class", DelegatingResourceLoader.class.getName());
@@ -195,6 +203,7 @@ public class DefaultConfigurationService implements ConfigurationService {
 		context.put("mac", mac);
 		context.put("props", propertiesService);
 		context.put("util", utils);
+		context.put("keyGenerator", keyGenerator);
 		currentRunningContext.set(context);
 		try {
 			return processInternal(loader, templateName, context);

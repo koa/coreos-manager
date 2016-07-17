@@ -15,6 +15,8 @@ import lombok.Data;
 public class Configuration {
 	private String branch;
 	private File cacheDir;
+	private char[] keyPassword = "changeIt".toCharArray();
+	private File localData = new File(new File(System.getProperty("user.home")), ".coreos-manager");
 	private Resource macPropertiesConfiguration;
 	private Map<String, List<String>> properties;
 	private String repository;
