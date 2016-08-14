@@ -27,6 +27,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.bouncycastle.asn1.ASN1InputStream;
@@ -35,6 +36,8 @@ import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNamesBuilder;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -93,6 +96,47 @@ public class DefaultKeyGenerator implements KeyGenerator {
 		keyGen.initialize(2048, random);
 	}
 
+	@Override
+	public String[] apiKey(final String domainName, final List<String> dnsNames, final List<String> ipAddresses)	throws OperatorException,
+																																																								IOException,
+																																																								GeneralSecurityException {
+		final PrivateKeyEntry privateKeyEntry = getApiserverKey(domainName, dnsNames, ipAddresses);
+
+		final StringWriter keyWriter = new StringWriter();
+		final StringWriter certWriter = new StringWriter();
+		{
+			@Cleanup
+			final PemWriter pemKeyWriter = new PemWriter(keyWriter);
+			pemKeyWriter.writeObject(new JcaMiscPEMGenerator(privateKeyEntry.getPrivateKey()));
+			@Cleanup
+			final PemWriter pemCertWriter = new PemWriter(certWriter);
+			for (final Certificate cert : privateKeyEntry.getCertificateChain()) {
+				pemCertWriter.writeObject(new JcaMiscPEMGenerator(cert));
+			}
+		}
+
+		return new String[] { keyWriter.toString(), certWriter.toString() };
+	}
+
+	private PrivateKeyEntry getApiserverKey(final String domainName, final List<String> dnsNames, final List<String> ipAddresses)	throws KeyStoreException,
+																																																																OperatorCreationException,
+																																																																CertificateException,
+																																																																IOException,
+																																																																GeneralSecurityException {
+		final PrivateKeyEntry rootKey = getRootKey(domainName);
+		final int validDays = 365 * 10;
+
+		final KeyPair pair = keyGen.generateKeyPair();
+		final PrivateKey privateKey = pair.getPrivate();
+		final PublicKey publicKey = pair.getPublic();
+		final X509Certificate x509Certificate = signServiceKey(publicKey, rootKey.getPrivateKey(), validDays, dnsNames, ipAddresses);
+		final Certificate[] rootKeyChain = rootKey.getCertificateChain();
+		final Certificate[] certificates = new Certificate[rootKeyChain.length + 1];
+		System.arraycopy(rootKeyChain, 0, certificates, 1, rootKeyChain.length);
+		certificates[0] = x509Certificate;
+		return new PrivateKeyEntry(privateKey, certificates);
+	}
+
 	private PrivateKeyEntry getRootKey(final String domainName)	throws KeyStoreException,
 																															IOException,
 																															OperatorCreationException,
@@ -108,7 +152,7 @@ public class DefaultKeyGenerator implements KeyGenerator {
 			final PrivateKey rootKey = pair.getPrivate();
 			final PublicKey publicKey = pair.getPublic();
 
-			final X509Certificate cert = signKey(publicKey, rootKey, domainName, validDays);
+			final X509Certificate cert = signCaKey(publicKey, rootKey, domainName, validDays);
 			final PrivateKeyEntry entry = new PrivateKeyEntry(rootKey, new Certificate[] { cert });
 			storeEntry(rootKeyName, entry);
 			return entry;
@@ -157,10 +201,10 @@ public class DefaultKeyGenerator implements KeyGenerator {
 		return writer.toString();
 	}
 
-	private X509Certificate signKey(final PublicKey publicKey, final PrivateKey signKey, final String keyName, final int validDays)	throws IOException,
-																																																																	OperatorCreationException,
-																																																																	CertificateException,
-																																																																	GeneralSecurityException {
+	private X509Certificate signCaKey(final PublicKey publicKey, final PrivateKey signKey, final String keyName, final int validDays)	throws IOException,
+																																																																		OperatorCreationException,
+																																																																		CertificateException,
+																																																																		GeneralSecurityException {
 
 		final JcaX509ExtensionUtils extensionUtils = new JcaX509ExtensionUtils();
 
@@ -183,8 +227,45 @@ public class DefaultKeyGenerator implements KeyGenerator {
 		x509v3CertificateBuilder.addExtension(Extension.subjectKeyIdentifier, false, extensionUtils.createSubjectKeyIdentifier(publicKey));
 		x509v3CertificateBuilder.addExtension(Extension.basicConstraints, false, new BasicConstraints(true));
 		final X509CertificateHolder x509CertificateHolder = x509v3CertificateBuilder.build(signer);
-		final X509Certificate cert = new JcaX509CertificateConverter().setProvider(BC).getCertificate(x509CertificateHolder);
-		return cert;
+		return new JcaX509CertificateConverter().setProvider(BC).getCertificate(x509CertificateHolder);
+	}
+
+	private X509Certificate signServiceKey(	final PublicKey publicKey,
+																					final PrivateKey signKey,
+																					final int validDays,
+																					final List<String> dnsNames,
+																					final List<String> ipAddresses) throws IOException, OperatorCreationException, CertificateException, GeneralSecurityException {
+
+		final GeneralNamesBuilder namesBuilder = new GeneralNamesBuilder();
+		if (ipAddresses != null) {
+			for (final String address : ipAddresses) {
+				namesBuilder.addName(new GeneralName(GeneralName.iPAddress, address));
+			}
+		}
+		if (dnsNames != null) {
+			for (final String name : dnsNames) {
+				namesBuilder.addName(new GeneralName(GeneralName.dNSName, name));
+			}
+		}
+
+		final X500NameBuilder nameBuilder = new X500NameBuilder(BCStyle.INSTANCE);
+		nameBuilder.addRDN(BCStyle.OU, "None");
+		nameBuilder.addRDN(BCStyle.O, "apiserver");
+		final X500Name issuer = nameBuilder.build();
+		final BigInteger serial = nextSerial();
+		final Date notBefore = new Date(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(1));
+		final Date notAfter = new Date(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(validDays));
+		final X500Name subject = nameBuilder.build();
+		@Cleanup
+		final ASN1InputStream asn1InputStream = new ASN1InputStream(publicKey.getEncoded());
+		final SubjectPublicKeyInfo publicKeyInfo = SubjectPublicKeyInfo.getInstance(asn1InputStream.readObject());
+		final ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSAEncryption").setProvider(BC).build(signKey);
+		final X509v3CertificateBuilder x509v3CertificateBuilder = new X509v3CertificateBuilder(issuer, serial, notBefore, notAfter, subject, publicKeyInfo);
+		x509v3CertificateBuilder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.nonRepudiation | KeyUsage.keyEncipherment));
+		x509v3CertificateBuilder.addExtension(Extension.subjectAlternativeName, false, namesBuilder.build());
+		x509v3CertificateBuilder.addExtension(Extension.basicConstraints, false, new BasicConstraints(false));
+		final X509CertificateHolder x509CertificateHolder = x509v3CertificateBuilder.build(signer);
+		return new JcaX509CertificateConverter().setProvider(BC).getCertificate(x509CertificateHolder);
 	}
 
 	private void storeEntry(final String rootKeyName, final PrivateKeyEntry entry)	throws KeyStoreException,

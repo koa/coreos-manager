@@ -1,4 +1,5 @@
 #parse("include/kubernetes.vm")
+#set( $myKey = $keyGenerator.apiKey("test.local",["kubernetes","kubernetes.default"],["10.14.50.1",$ipv4Address]) )
 ignition:
   version: 2.0.0
 storage:
@@ -33,9 +34,23 @@ storage:
       source: $util.source("text/plain","ignition/files/options.env")
   - filesystem: root
     path: /etc/kubernetes/ssl/ca.pem
-    mode: $util.oct2dec(0644)
+    mode: $util.oct2dec(0600)
+    user:
+      id: 0
+    group:
+      id: 0
     contents:
       source: $util.sourceEncode("text/pem",$keyGenerator.rootCertificate("test.local"))
+  - filesystem: root
+    path: /etc/kubernetes/ssl/apiserver-key.pem
+    mode: $util.oct2dec(0644)
+    contents:
+      source: $util.sourceEncode("text/pem",$myKey[0])
+  - filesystem: root
+    path: /etc/kubernetes/ssl/apiserver.pem
+    mode: $util.oct2dec(0644)
+    contents:
+      source: $util.sourceEncode("text/pem",$myKey[1])
 systemd:
   units:
   - name: init.service

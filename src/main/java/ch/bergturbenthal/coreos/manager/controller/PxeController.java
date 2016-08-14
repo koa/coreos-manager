@@ -27,12 +27,13 @@ public class PxeController {
 
 	@RequestMapping(path = { "boot.ipxe", "boot.ipxe.0" }, produces = "text/plain")
 	public String boot() {
-		return "#!ipxe\nchain ipxe?mac=${net0/mac:hexhyp}";
+		return "#!ipxe\nchain ipxe?mac=${net0/mac:hexhyp}&uuid=${uuid}";
 	}
 
 	@RequestMapping(path = "ipxe", produces = "text/plain")
-	public Resource bootWithParams(@RequestParam("mac") final String mac) {
+	public Resource bootWithParams(@RequestParam("mac") final String mac, @RequestParam("uuid") final String uuid) {
 		try {
+			log.info("pxe boot " + mac + ", " + uuid);
 			return configurationService.generatePXE(mac);
 		} catch (final Exception ex) {
 			log.error("Cannot process data for " + mac, ex);

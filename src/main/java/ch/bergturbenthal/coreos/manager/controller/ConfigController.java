@@ -30,6 +30,7 @@ public class ConfigController {
 		try {
 			final String filename = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
 			final String onlyFilename = filename.substring(8);
+			log.info("Loading config " + onlyFilename + " for " + mac);
 			return configurationService.generateFile(onlyFilename, mac);
 		} catch (final FileNotFoundException ex) {
 			throw new ResourceNotFoundException("config not found", ex);
