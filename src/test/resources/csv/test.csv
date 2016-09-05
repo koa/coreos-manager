@@ -1,4 +1,13 @@
-hostname,mac,boot,channel,ipv4_address,discs,installedProfile,console,ssh-key
-impossible-bee,00-0d-b9-35-b7-9c,default,,192.168.122.252,/dev/sda,k8s-master,ttyS0,akoenig
-km1,52-54-00-66-cb-cb,default,beta,192.168.122.253,/dev/vda,k8s-master,ttyS0,akoenig
-km2,52-54-00-66-cb-cc,default,beta,192.168.122.254,/dev/vda,k8s-master,ttyS0,akoenig
+hostname,mac,boot,channel,coreos-version,ipv4_address,ipv4_netmask,ipv4_gateway,discs,installedProfile,k8s-role,console,ssh-key,ethernet
+sr08,00-0d-b9-35-b7-9c,default,alpha,,172.31.0.17,24,172.31.0.1,/dev/sda,k8s,master,ttyS0,akoenig,enp1s0
+sr09,00-0d-b9-36-6c-4c,default,alpha,,172.31.0.18,24,172.31.0.1,/dev/sda,k8s,master,ttyS0,akoenig,enp1s0
+km1,52-54-00-8c-51-34,default,beta,,192.168.122.253,24,192.168.122.1,/dev/vda,k8s,node,ttyS0,akoenig,
+km2,52-54-00-66-cb-cc,default,beta,1141.0.0,192.168.122.254,24,192.168.122.1,/dev/vda,k8s,node,ttyS0,akoenig,
+kore,00-25-90-4a-c2-54,default,beta,1141,172.30.50.23,16,172.30.10.1,"/dev/sda,/dev/sdb,/dev/sdc,/dev/sdd",k8s,node,tty1,akoenig,enp1s0
+janus,00-22-15-df-54-72,default,beta,,172.30.50.26,16,172.30.10.1,/dev/sda,k8s,node,tty1,akoenig,eth0
+sr02,18-a9-05-4b-94-2a,default,beta,,172.31.0.11,24,172.31.0.1,/dev/sda,k8s,node,tty1,akoenig,"enp2s0f0,enp2s0f1"
+sr03,18-a9-05-4f-f8-5c,default,beta,,172.31.0.12,24,172.31.0.1,/dev/sda,k8s,node,tty1,akoenig,"enp2s0f0,enp2s0f2"
+sr04,00-1e-68-37-7d-c9,default,beta,,172.31.0.13,24,172.31.0.1,,,,,,
+sr05,00-23-8b-17-1d-65,default,beta,,172.31.0.14,24,172.31.0.1,,,,,,
+sr06,00-25-90-4a-d6-70,default,beta,,172.31.0.15,24,172.31.0.1,,,,,,
+sr07,00-25-90-4a-d4-b5,default,beta,,172.31.0.16,24,172.31.0.1,,,,,,

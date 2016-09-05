@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -50,6 +51,7 @@ import ch.bergturbenthal.coreos.manager.service.ConfigurationService;
 import ch.bergturbenthal.coreos.manager.service.GitAccessService;
 import ch.bergturbenthal.coreos.manager.service.KeyGenerator;
 import ch.bergturbenthal.coreos.manager.service.PropertiesService;
+import ch.bergturbenthal.coreos.manager.service.ProxyService;
 import lombok.Cleanup;
 
 @Service
@@ -100,6 +102,10 @@ public class DefaultConfigurationService implements ConfigurationService {
 
 		public int oct2dec(final int octAsInt) {
 			return Integer.parseInt(Integer.toString(octAsInt), 8);
+		}
+
+		public String proxyFor(final String uri) {
+			return resolve("genproxy/" + proxyService.createHandle(URI.create(uri)));
 		}
 
 		public String resolve(final String relative) {
@@ -155,12 +161,15 @@ public class DefaultConfigurationService implements ConfigurationService {
 	private final GitAccessService gitAccessService;
 	private final KeyGenerator keyGenerator;
 	private final PropertiesService propertiesService;
+	private final ProxyService proxyService;
 
 	@Autowired
-	public DefaultConfigurationService(final PropertiesService propertiesService, final GitAccessService gitAccessService, final KeyGenerator keyGenerator) {
+	public DefaultConfigurationService(	final PropertiesService propertiesService, final GitAccessService gitAccessService, final KeyGenerator keyGenerator,
+																			final ProxyService proxyService) {
 		this.propertiesService = propertiesService;
 		this.gitAccessService = gitAccessService;
 		this.keyGenerator = keyGenerator;
+		this.proxyService = proxyService;
 		final RuntimeServices runtimeServices = RuntimeSingleton.getRuntimeServices();
 		runtimeServices.addProperty(RuntimeConstants.RESOURCE_LOADER, "delegate");
 		runtimeServices.addProperty("delegate.resource.loader.class", DelegatingResourceLoader.class.getName());

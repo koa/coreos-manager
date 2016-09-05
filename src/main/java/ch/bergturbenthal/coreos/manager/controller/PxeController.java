@@ -1,18 +1,14 @@
 package ch.bergturbenthal.coreos.manager.controller;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import ch.bergturbenthal.coreos.manager.service.AssetService;
 import ch.bergturbenthal.coreos.manager.service.ConfigurationService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,8 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 public class PxeController {
 
-	@Autowired
-	private AssetService assetService;
 	@Autowired
 	private ConfigurationService configurationService;
 
@@ -39,23 +33,6 @@ public class PxeController {
 			log.error("Cannot process data for " + mac, ex);
 			return new ByteArrayResource("Error".getBytes(StandardCharsets.UTF_8));
 		}
-	}
-
-	@RequestMapping("proxy/{channel}/{version}/{filename:.+}")
-	public FileSystemResource loadFile(	@PathVariable("channel") final String channel,
-																			@PathVariable("version") final String version,
-																			@PathVariable("filename") final String filename) throws IOException {
-		return assetService.getFile(channel, version, filename);
-	}
-
-	@RequestMapping("initrd/{channel}")
-	public FileSystemResource loadInitRd(@PathVariable("channel") final String channel) throws IOException {
-		return assetService.getInitRd(channel);
-	}
-
-	@RequestMapping("kernel/{channel}")
-	public FileSystemResource loadKernel(@PathVariable("channel") final String channel) throws IOException {
-		return assetService.getKernel(channel);
 	}
 
 }
